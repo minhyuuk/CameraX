@@ -3,14 +3,17 @@ package com.jmh.camerax
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.*
+import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.databinding.DataBindingUtil
 import com.jmh.camerax.databinding.ActivityMainBinding
 import java.io.File
+import java.lang.Exception
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -46,7 +49,50 @@ class MainActivity : AppCompatActivity() {
 
     private fun takePhoto() {}
 
-    private fun startCamera() {}
+
+    // 카메라 어플리케이션에서 뷰파인더는 사용자가 자신이 찍을 사진을 미리 볼 수 있도록 하기 위해 사용
+    // CameraX의 Preview 클래스를 사용하여 뷰파인더를 구현할 수 있음
+    // Preview를 사용하려면 먼저 구성을 정의한 다음 이 구성을 사용하여 use case의 객체를 생성해야 함
+    // use case의 인스턴스를 만들어야 함
+    // 반환된 인스턴스는 CameraX 라이프사이클에 바인딩
+
+//    카메라 프리뷰 함수
+    private fun startCamera() {
+
+        // ProcessCameraProvider의 인스턴스를 생성
+        // 카메라의 라이프 사이클을 라이프 사이클 소유자에 바인딩하는 데 사용
+        // 이렇게 하면 카메라X가 라이프사이클을 인식하므로 카메라를 열고 닫을 필요가 없어짐
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
+
+        cameraProviderFuture.addListener(Runnable {
+            // 카메라의 라이프 사이클을 어플리케이션 프로세스 내에서 LifecycleOwner에 바인딩 하기위해 사용
+            val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
+
+            // preview 객체를 초기화 하고 빌드한 뒤, 뷰파인더에서 surface provider를 가져와
+            // preview에 설정한다.
+            val preview = Preview.Builder()
+                .build()
+                .also {
+                    //
+                    it.setSurfaceProvider(binding.viewFinder.surfaceProvider)
+                }
+
+            // 후면 카메라를 기본 값으로 설정
+            val cameraSeletor = CameraSelector.DEFAULT_BACK_CAMERA
+            try{
+                // cameraProvider가 아무것도 바인딩 되지 않게 설정 후
+                cameraProvider.unbindAll()
+
+                // cameraSelector 와 preview 객체를 cameraProvider에 바인딩
+                cameraProvider.bindToLifecycle(
+                    this,cameraSeletor,preview
+                )
+                // 에러 발생 시 catch를 통해 Log 찍음
+            }catch (e : Exception){
+                Log.e(TAG,"Use case binding을 실패했습니다.", e)
+            }
+        }, ContextCompat.getMainExecutor(this))
+    }
 
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
         ContextCompat.checkSelfPermission(
