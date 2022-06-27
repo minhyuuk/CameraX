@@ -2,6 +2,7 @@ package com.jmh.camerax
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
@@ -14,6 +15,7 @@ import androidx.databinding.DataBindingUtil
 import com.jmh.camerax.databinding.ActivityMainBinding
 import java.io.File
 import java.lang.Exception
+import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -46,8 +48,39 @@ class MainActivity : AppCompatActivity() {
         outputDirectory = getOutputDirectory()
         cameraExecutor = Executors.newSingleThreadExecutor()
     }
+    // 사진 촬영 버튼을 눌렀을 때 호출되는 함수
+    private fun takePhoto() {
+        // imageCapture 값이 null이면 앱 crash
+        val imageCapture = imageCapture ?: return
 
-    private fun takePhoto() {}
+        // 파일 이름 고유성을 위해 타임 스탬프 추가
+        val photoFile = File(
+            outputDirectory,
+            SimpleDateFormat(FILENAME_FORMAT,Locale.US)
+                .format(System.currentTimeMillis()) + ".jpg"
+        )
+
+        // photoFile 형식으로 파일 출력 방법 지정
+        val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
+
+        // 이미지 저장 시 callback을 파라미터로 전달
+        imageCapture.takePicture(
+            outputOptions,ContextCompat.getMainExecutor(this), object : ImageCapture.OnImageSavedCallback {
+                override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                    val savedUri = Uri.fromFile(photoFile)
+                    val msg = "사진 촬영에 성공했습니다! : $savedUri"
+                    Toast.makeText(baseContext,msg,Toast.LENGTH_SHORT).show()
+                    Log.d(TAG,msg)
+                }
+
+                // 이미지 저장에 실패하면 Log 출력
+                override fun onError(exception: ImageCaptureException) {
+                    Log.e(TAG,"사진 촬영에 실패했습니다. : ${exception.message}",exception)
+                }
+
+            }
+        )
+    }
 
 
     // 카메라 어플리케이션에서 뷰파인더는 사용자가 자신이 찍을 사진을 미리 볼 수 있도록 하기 위해 사용
@@ -77,16 +110,19 @@ class MainActivity : AppCompatActivity() {
                     it.setSurfaceProvider(binding.viewFinder.surfaceProvider)
                 }
 
+            imageCapture = ImageCapture.Builder()
+                .build()
+
             // 후면 카메라를 기본 값으로 설정
-            val cameraSeletor = CameraSelector.DEFAULT_BACK_CAMERA
+            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
             try{
                 // cameraProvider가 아무것도 바인딩 되지 않게 설정 후
                 cameraProvider.unbindAll()
 
                 // cameraSelector 와 preview 객체를 cameraProvider에 바인딩
                 cameraProvider.bindToLifecycle(
-                    this,cameraSeletor,preview
-                )
+                    this, cameraSelector, preview, imageCapture)
+
                 // 에러 발생 시 catch를 통해 Log 찍음
             }catch (e : Exception){
                 Log.e(TAG,"Use case binding을 실패했습니다.", e)
